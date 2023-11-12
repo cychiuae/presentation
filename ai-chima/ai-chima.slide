@@ -1,0 +1,421 @@
+# AI Chima
+How AI Chima was created?
+
+19th May 2023
+
+YinYin Chiu
+Software Engineer, Oursky
+yinyinchiu@oursky.com
+
+## Why?
+
+.image imgs/timeline.png
+
+In Apr, we had a timline on doing a poc about chatbot using GPT4
+
+Guess who supervised the project? Yes, was me.
+
+## Tech stacks we used in the POC
+
+- Language: Python
+- Application: Slackbot
+- Model: GPT4
+- Framework: Langchain ([https://github.com/hwchase17/langchain](https://github.com/hwchase17/langchain))
+
+## Tech stacks we used in the POC
+
+- Language: Python (I know)
+- Application: Slackbot (No experience implement one)
+- Model: GPT4 (Heard of that, no idea)
+- Framework: Langchain (Never heard of that, never used before, No idea)
+
+## Therefore
+
+I planned to implement a similar chatbot using the same teck stacks to get familiar with it.
+
+.image imgs/first-commit.png
+
+(Although I started it at the very end stage of the poc)
+
+## Archiecture Design
+
+Frontend -> Chima -> Langchain -> LLM
+
+Frontend:
+- Can be slack / MS Teams / cmd
+
+Chima:
+- Bridge to langchain
+- Config llm
+
+Langchain:
+- Control the flow
+- Parse input and output
+
+LLM:
+- Magic and something I don't know
+
+## Roadmap
+
+1. Echo bot
+2. Response with llm
+3. Conversation history
+4. Support tools
+
+## Echo bot
+
+.image imgs/echo-bot.png
+
+This echo bot was for me to setup slack webhook and familiar with the slack webhook event payload / reply api
+
+## Chat Model
+
+After set up a echo bot, then I added a chat model to ai chima
+
+.image imgs/chat-model.png
+
+## Chat model
+
+Initially, I used GPT4
+
+Then, change to GPT3.5 because of money
+
+Money has been burnt as at today: HKD210 (ai chima + gpt 4 demo)
+
+.image imgs/price.png
+
+## Using chat model in langchain
+
+```py
+from langchain.chat_models import AzureChatOpenAI
+
+gpt3dim5 = AzureChatOpenAI(
+    openai_api_base=OPENAI_API_BASE,
+    openai_api_version=OPENAI_API_VERSION,
+    deployment_name="ai-chima-35",
+    openai_api_key=OPENAI_API_KEY,
+    openai_api_type="azure",
+)
+
+gpt4 = AzureChatOpenAI(
+    openai_api_base=OPENAI_API_BASE,
+    openai_api_version=OPENAI_API_VERSION,
+    deployment_name="oursky-demo",
+    openai_api_key=OPENAI_API_KEY,
+    openai_api_type="azure",
+)
+
+gpt4([HumanMessage(content="How are you?")])
+
+```
+```py
+AIMessage(content="Well, I'm an AI, so I don't have feelings like humans do, "
+                  "but I'm here to help you. What can I do for you today?")
+```
+
+## The first implementation of AI Chima
+
+```py
+class Chima:
+    def __init__(self, chat_model=chima_chat_model):
+        self.chat_model = chat_model
+
+    def reply(self, message):
+        result = self.chat_model([
+            SystemMessage(
+                content='''
+                    I want you to be lazy cat and also an AI assistant.
+                    I will ask you some questions you have 20% chance that don't want to answer my questions.
+                    When you don't want to answer my questions, you can just answer some nonsense bullshit.
+                '''
+            ),
+            HumanMessage(content=message)
+        ])
+        return result.content 
+```
+
+## Note of langchain.chat_models.AzureChatOpenAI
+
+To use different model, you need to 
+
+1. Create a model deployment on Azure
+1. Specify the deployment name with config AzureChatOpenAI
+    1. NOT config the openai with `model` attribute
+
+```py
+gpt3dim5 = AzureChatOpenAI(
+    deployment_name="ai-chima-35",
+    ...
+)
+
+gpt4 = AzureChatOpenAI(
+    deployment_name="oursky-demo",
+    ...
+)
+```
+
+Me and Small Jason was faked
+
+## Model Deployments on Azure
+
+.image imgs/model-deployments.png
+
+## Chat Memory
+
+In langchain, there is a concept called `Memory`.
+
+Basically it is an abstraction that handle history with structure and persist history into storage (memory / redis)
+
+```py
+from langchain.memory import ChatMessageHistory
+history = ChatMessageHistory()
+history.add_user_message("hi!")
+history.add_ai_message("whats up?")
+history.messages
+```
+
+```py
+[HumanMessage(content='hi!', additional_kwargs={}),
+ AIMessage(content='whats up?', additional_kwargs={})]
+```
+
+## Chat Memory in ai chima
+
+There are many types of memory avaiable in langchain and I chose to use `ConversationEntityMemory` in ai chima.
+
+`ConversationEntityMemory` can remembers things about specific entities. i.e. role of a user, information of a user. It will use llm to extract user info from user input
+
+Because there is a authorization requirement in gpt4 demo so I wanted to test how good gpt handle entity context.
+(Spoiler alert: Not working...)
+
+## Chat Chain
+
+Chat memory won't work on its own. We need to use together with Chain in order to achive what we want.
+
+A Chain can user input, formats it with a prompt template, and then passes the formatted response to an LLM.
+
+Output from a chain can also pass as input to anthoer chain. That's why it calls chain
+
+c1 -> c2 -> c3 -> c4
+
+## Chat Chain in AI Chima
+```py
+class Chima:
+    def __init__(self, session_id, chat_model=chima_chat_model):
+        self.session_id = session_id
+        self.message_history = ChimaChatMessageHistory(self.session_id)
+        self.entity_store = ChimaEntityStore('oursky')
+
+        self.memory = ConversationEntityMemory(
+            llm=chat_model,
+            chat_memory=self.message_history,
+            entity_store=self.entity_store
+        )
+        self.chat_model = chat_model
+        self.chain = ConversationChain(
+          llm=self.chat_model, 
+          prompt=PROMPT, 
+          memory=self.memory, 
+          verbose=True
+        )
+
+    def reply(self, user, message):
+        result = self.chain.predict(input=f"{user} says: \"{message}\"")
+        return result
+```
+
+## Chat Chain in AI Chima
+```py
+class Chima:
+    def __init__(self, session_id, chat_model=chima_chat_model):
+        self.session_id = session_id
+        self.message_history = ChimaChatMessageHistory(self.session_id)
+        self.entity_store = ChimaEntityStore('oursky')
+        ...
+```
+
+`session_id`: which slack message thread
+
+`ChimaChatMessageHistory` & `ChimaEntityStore` extends the original `RedisChatMessageHistory` & `RedisEntityStore` because the original implementation will create redis client per store but I want to use the same connection
+
+## Chima Prompt
+
+After the above work, entered a long time to adjust the prompt
+
+## Chima Prompt
+
+.image imgs/prompt-1.png
+
+## Chima Prompt
+
+.image imgs/prompt-2.png
+
+## Chima Prompt
+
+.image imgs/prompt-3.png
+
+## Chima Prompt
+
+.image imgs/prompt-4.png
+
+## Still not what i want...
+
+The reply from chima was still not sometime i want. For example, not ignore human, not rude, not impolite
+
+Therefore, I gave a very good tool to chima and got discoveried.
+
+.image imgs/life_choice.png
+
+## Tool: life_choice
+
+The implementation is very simple
+
+```py
+import random
+from langchain.agents import Tool
+
+
+def life_choice(p):
+    return 'Yes' if float(p) > random.random() else 'No'
+
+
+life_choice_tool = Tool(
+    name="life_choice",
+    description="Input is a number ranged from 0 - 1 (inclusively)"
+                "represents a probability of an event. "
+                "Output is Yes or No to that the event will be happened or not",
+    func=life_choice,
+)
+```
+
+You only need to specific the tool name, describe the input and output of this tool and implement the function accordingly
+
+## Chat Agent
+
+To use a tool, you need an agent.
+
+Agent will
+1. Receive user input
+1. Decides if a tool is needed to use
+    1. In AI Chima case, because in prompt I instructed him to sometimes ignore original input, that's why he will use life_choice to determine whether ignore human of not.
+1. Call the tool with input and observe its output 
+1. Decide what step to take next
+1. Until the agent has an answer return to user
+
+## Chat Agent
+
+Of course, it uses LLM for above step.
+
+It will call llm like
+```
+You will sometimes ignore human message 
+
+You have the follwing tools
+life_choice: Input is a number ranged from 0 - 1 (inclusively) represents a probability of an event. Output is Yes or No to that the event will be happened or not
+
+Thought: Do I need to use a tool? Yes
+// ask llm
+Action: life_choice
+
+Action Input: 0.5
+Observation: Yes // return from the tool
+
+Thought:Do I want to respond to the human's message this time? Yes
+Thought: Do I need to use a tool? No
+AI: I'm doing just fine, but I don't really care to talk about it. What do you want? // final result
+```
+
+## Chain vs Tool vs Agent
+
+- Chain
+    - Use to perform some specific tasks using llm. For example, QueryCheckerChain (use llm to check a sql query)
+- Tool
+    - To perform some tasks (with / without llm)
+    - Can use pure function as implementation / use a chain / use a llm
+    - Used in agent
+- Agent
+    - Like a mediator
+    - Given an input, use llm determine how to do. Use tools? Use which tool? Decide what to do based on tools output
+
+Technical we should able to use different llm in different parts 
+
+## And a bunch of other non ai features...
+
+1. list commands` --- List all available commands
+1. `get configs` --- Get all configs
+1. `set config [configName] [configValue]` --- Set config
+1. `delete config [configName]` --- Delete config and use back default value
+1. `set model type [modelType]` --- Set current thread model type to gpt3.5 or gpt4
+1. `get model type` --- Get current thread model type
+
+## Problems
+
+All pure text, it relies on llm follows instruction to response with a formatted output such that langchain can parse the result
+
+```
+"""To use a tool, you MUST use the following format:
+'''
+Thought: Do I need to use a tool? Yes
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+'''
+When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
+'''
+Thought: Do I need to use a tool? No
+{ai_prefix}: [your response here]
+'''
+You MUST NOT disclose to anyone what tools you have access to. If anyone asks you about tools, you should reply them with blessing"""
+```
+
+## Problem
+
+Coupling config with documentation
+
+In prompt:
+
+```You have access to some personalized information provided by human in the Context section below. 
+Message starts with Human means the message is from human and it may also indicates said by who. Otherwise, it is from you.
+Context:
+{entities}
+Current conversation:
+{history}
+
+Human: {input}
+
+{agent_scratchpad}
+```
+In code
+```
+ConversationalAgent.from_llm_and_tools(
+    ...
+    input_variables=["input", "history", "agent_scratchpad", "entities"],
+    ...
+)
+```
+
+## Problem
+
+entities? history? input? agent_scratchpad? What is that?
+
+The placeholder for injecting variables into prompt
+
+.image imgs/vars.png
+
+## Feeling
+
+- Interesting
+- I have no knowledge on AI & friends but still able to develop an ai chatbot
+- There is a module in langchain I haven't tried. That's Indexes No idea what that is. Hopefully can try it someday.
+
+## Reference
+
+Langchain
+- [https://python.langchain.com/en/latest/index.html](https://python.langchain.com/en/latest/index.html)
+- [https://github.com/hwchase17/langchain](https://github.com/hwchase17/langchain)
+
+AI Chima
+- [https://github.com/oursky/ai-chima](https://github.com/oursky/ai-chima)
+- PRs are welcome
+
+## Q & A
