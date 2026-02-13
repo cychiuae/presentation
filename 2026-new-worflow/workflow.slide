@@ -1,0 +1,156 @@
+# 2026 Development Setup
+
+My new development setup in 2026
+
+13th Feb 2026
+
+YinYin Chiu
+Software Engineer, Oursky
+yinyinchiu@oursky.com
+
+## My work
+
+In a day, I usually
+1. Doing technical planning on user stories / features
+2. Write code according to planned technical tasks
+3. Fix bugs
+4. Code review other colleagues' pull requests
+5. Meeting with client (mostly with Sxxxe TP)
+6. Walk around office and catch up
+
+## Before 2026
+
+1. Open linear
+2. See what tickets assigned to me
+3. Open my terminal
+4. Use vim writing
+5. Testing in my macbook
+
+## Change in 2026
+
+1. Use a separate linux machine for development
+1. Adopt AI development flow
+
+## Change 1: Remote Linux dev machine
+
+- **Code lives on a dedicated Linux machine** — all codebases stored there
+- **Edit via SSH in Cursor** — open remote folders over SSH, edit as if local
+- MacBook stays light for meetings, browsing, and client calls
+- Builds, Docker, and tooling run on the Linux box
+
+## Change 1: Remote Linux dev machine
+
+Demo - HKFC APP
+
+## Change 1: Remote Linux dev machine
+
+Benefits
+
+1. Still using similar development env
+   - tmux, vim if needed
+1. Run docker faster
+1. Always use office network
+   - Thanks Big Peter & Rick for setting up tailscale in office
+   - Won't accidentally connect claude with HK IP
+
+## Change 2: Adopt AI more
+
+- Used Cursor from mid 2025 (WP)
+
+FROM
+1. TAP TAP TAP
+1. Small prompt to implement single API endpoint / small tasks
+1. Cursor plan mode for small feature
+1. Claude implement all for me
+
+## Change 2: Adopt AI more
+
+My AI Agents team
+
+[https://github.com/cychiuae/claude-oursky-agent](https://github.com/cychiuae/claude-oursky-agent)
+
+## Change 2: Adopt AI more
+
+- Roy (COO, workflow coordinator)
+- **Teddy** (PM Agent): Clarifies requirements, generates feature specs
+- **Kenji** (Tech Lead - Design): Creates technical breakdowns, designs, and parallel execution plans
+- **Andy** (Developer): Implements the code - up to 4 instances can work in parallel on independent tasks
+- **Rick** (CTO - Review): Reviews code for quality and best practices
+- **Kenchan**: React specialist
+- **Yusan**: Spring Framework specialist
+- **Calvin**: Kotlin specialist
+- **Rocky**: React Native specialist
+- **Joyz**: QA specialist - test planning, input/output specifications, test case design
+- **Frank**: UI/UX Lead - interface design, user interactions, animations, layout decisions
+
+## Change 2: Adopt AI more
+
+```
+Phase 1: Requirements (Teddy)
+    ↓ [Human Review & Approval]
+Phase 2: Technical Design (Kenji)
+    - Task breakdown with dependencies
+    - Parallel execution plan
+    ↓ [Human Review & Approval]
+Phase 3: Implementation (Up to 4 Andys in parallel)
+    - Execute tasks in waves based on dependencies
+    - Independent tasks run concurrently
+    ↓
+Phase 4: Code Review (Rick)
+    ↓ [Loop back to Andy if issues found]
+Phase 5: Verification & Ship
+    ↓ [Human Verification]
+    ↓
+    ├─→ Code changes needed? ─→ Fix Loop:
+    │                           1. Kenji (identify problem)
+    │                           2. Andy (implement fix)
+    │                           3. Rick (review fix)
+    │                           └─→ Back to Human Verification
+    │
+    └─→ Verified complete → Ship
+```
+
+## Change 2: Adopt AI more
+
+Demo
+
+## Change 2: Adopt AI more
+
+- **Planning and coding** — use AI agents for technical planning and writing code from tasks
+- **I still own quality** — manually test implemented features before merging
+- Agents handle boilerplate and implementation; I focus on design, review, and validation
+
+## Change 1 + Change 2: Bonus
+
+- More "free" time
+- Generate code very fast -> very fast mvp
+- Make a few small tools past 2 weeks
+
+## shhh
+
+[https://github.com/cychiuae/shhh](https://github.com/cychiuae/shhh)
+
+.image assets/shhh1.png 300 _
+.image assets/shhh2.png 300 _
+
+## Don't Git a SSH
+
+[https://github.com/cychiuae/dont-git-a-ssh](https://github.com/cychiuae/dont-git-a-ssh)
+
+.image assets/git1.png 500 _
+
+## Starboard
+
+[https://github.com/cychiuae/starboard](https://github.com/cychiuae/starboard)
+
+.image assets/port.png 500 _
+
+## Mermaid Editor
+
+[https://mermaid-editor.iamatomic.dev/](https://mermaid-editor.iamatomic.dev/)
+
+[https://github.com/cychiuae/mermaid-editor](https://github.com/cychiuae/mermaid-editor)
+
+.image assets/mee.png 450 _
+
+## Goodbye
