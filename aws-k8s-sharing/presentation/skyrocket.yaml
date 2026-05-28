@@ -1,0 +1,9 @@
+name: aws-k8s-sharing-20260529
+port: 80
+resources:
+  postgresql:
+    enable: false
+  s3:
+    enable: false
+  redis:
+    enable: false

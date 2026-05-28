@@ -1,0 +1,9 @@
+name: aws-k8s-sharing-20260529-gopresent
+
+services:
+  - name: default
+    build:
+      dockerfile: ./Dockerfile
+      context: .
+    port: 8080
+    public: true

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/yinyinchiu/projects/presentation/aws-k8s-sharing/**)",
+      "Read(//Users/yinyinchiu/projects/presentation/**)",
+      "WebFetch(domain:docs-skyrocket.oursky.dev)"
+    ]
+  }
+}

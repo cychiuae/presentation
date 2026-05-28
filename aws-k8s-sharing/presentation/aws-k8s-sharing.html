@@ -1,0 +1,2322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibe-Coding a fly.io Clone in a Week — YinYin Chiu, Oursky</title>
+
+<!-- Google Fonts: Bricolage Grotesque (display), IBM Plex Sans (body), JetBrains Mono (mono) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ===========================================
+   CSS CUSTOM PROPERTIES — Mesh Network theme
+   =========================================== */
+:root {
+    --stage-bg: #04060a;
+    --slide-bg: linear-gradient(180deg, #0a0e16 0%, #06080d 100%);
+
+    --bg-deep:   #06080d;
+    --bg-base:   #0a0e16;
+    --bg-panel:  rgba(20, 28, 42, 0.6);
+    --border:    rgba(110, 198, 208, 0.22);
+    --border-strong: rgba(110, 198, 208, 0.45);
+
+    --text-primary:   #f4f6f8;
+    --text-secondary: #b6bfca;
+    --text-muted:     #6ec6d0;
+    --text-dim:       #5a6573;
+
+    --cyan:        #00d8ff;
+    --cyan-soft:   #6ee7ff;
+    --cyan-deep:   rgba(0, 216, 255, 0.18);
+    --warm:        #ff8a4c;
+    --warm-soft:   #ffb084;
+    --warm-deep:   rgba(255, 138, 76, 0.18);
+    --rose:        #ff6c8a;
+
+    --font-display: 'Bricolage Grotesque', sans-serif;
+    --font-body:    'IBM Plex Sans', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+
+    --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:       0.7s;
+}
+
+/* ===========================================
+   BASE
+   =========================================== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* --- viewport-base.css (mandatory base styles) --- */
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+.deck-viewport {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+.deck-stage {
+    position: absolute;
+    left: 0; top: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    transform-origin: 0 0;
+    background: var(--bg-base);
+}
+
+.slide {
+    position: absolute;
+    inset: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    display: block;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    background: var(--slide-bg);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+}
+
+.slide.active,
+.slide.visible {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+img, video, canvas, svg {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.deck-controls {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+@media print {
+    html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+    .deck-viewport { position: static; overflow: visible; background: #fff; }
+    .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+    .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; page-break-after: always; }
+    .slide:last-child { break-after: auto; page-break-after: auto; }
+    .deck-controls { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+/* ===========================================
+   MESH BACKGROUND — shared across slides
+   =========================================== */
+.mesh-bg {
+    position: absolute; inset: 0;
+    background:
+        radial-gradient(1200px 800px at 18% 25%, rgba(0, 200, 220, 0.10), transparent 70%),
+        radial-gradient(900px 700px at 88% 85%, rgba(255, 138, 76, 0.08), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+.mesh-grid {
+    position: absolute; inset: 0;
+    background-image:
+        linear-gradient(rgba(120, 180, 200, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120, 180, 200, 0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse at 50% 50%, #000 30%, transparent 85%);
+    -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 30%, transparent 85%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ===========================================
+   GLOBAL CHROME (header + footer per slide)
+   =========================================== */
+.chrome-top {
+    position: absolute; top: 56px; left: 96px; right: 96px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-mono);
+    font-size: 18px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    z-index: 5;
+}
+.chrome-top .left { display: flex; gap: 18px; align-items: center; }
+.chrome-top .left .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--cyan); box-shadow: 0 0 12px var(--cyan);
+}
+.chrome-top .right { display: flex; gap: 16px; align-items: center; }
+.chrome-top .right .sep { opacity: 0.4; }
+
+.chrome-bot {
+    position: absolute; bottom: 56px; left: 96px; right: 96px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    z-index: 5;
+}
+.chrome-bot .counter { color: var(--text-muted); }
+.chrome-bot .counter b { color: var(--cyan); font-weight: 600; }
+.chrome-bot .brand { color: var(--text-muted); }
+
+/* ===========================================
+   ENTRANCE ANIMATIONS
+   =========================================== */
+.reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity var(--dur) var(--ease-out),
+                transform var(--dur) var(--ease-out);
+}
+.slide.visible .reveal { opacity: 1; transform: translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay: 0.05s; }
+.slide.visible .reveal:nth-child(2) { transition-delay: 0.15s; }
+.slide.visible .reveal:nth-child(3) { transition-delay: 0.25s; }
+.slide.visible .reveal:nth-child(4) { transition-delay: 0.35s; }
+.slide.visible .reveal:nth-child(5) { transition-delay: 0.45s; }
+.slide.visible .reveal:nth-child(6) { transition-delay: 0.55s; }
+
+.reveal-d1 { transition-delay: 0.1s !important; }
+.reveal-d2 { transition-delay: 0.2s !important; }
+.reveal-d3 { transition-delay: 0.3s !important; }
+.reveal-d4 { transition-delay: 0.4s !important; }
+.reveal-d5 { transition-delay: 0.5s !important; }
+.reveal-d6 { transition-delay: 0.6s !important; }
+
+/* ===========================================
+   TYPOGRAPHY HELPERS
+   =========================================== */
+.eyebrow {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    color: var(--warm);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 14px;
+}
+.eyebrow::before {
+    content: ''; display: inline-block;
+    width: 36px; height: 2px; background: var(--warm);
+}
+
+.title-xxl {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-variation-settings: 'opsz' 96;
+    font-size: 144px;
+    line-height: 0.92;
+    letter-spacing: -0.035em;
+    color: var(--text-primary);
+}
+.title-xl {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variation-settings: 'opsz' 80;
+    font-size: 96px;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+}
+.title-lg {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variation-settings: 'opsz' 64;
+    font-size: 72px;
+    line-height: 1.0;
+    letter-spacing: -0.025em;
+    color: var(--text-primary);
+}
+
+.ink-grad {
+    background: linear-gradient(90deg, var(--cyan) 0%, var(--cyan-soft) 50%, var(--warm) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.accent-cyan { color: var(--cyan); }
+.accent-warm { color: var(--warm); }
+
+/* ===========================================
+   PILLS, CHIPS, BADGES
+   =========================================== */
+.chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 18px;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+    background: rgba(20, 28, 42, 0.4);
+}
+.chip.glow {
+    color: var(--cyan);
+    border-color: rgba(0, 216, 255, 0.5);
+    box-shadow: inset 0 0 12px rgba(0, 216, 255, 0.1);
+}
+.chip.warm {
+    color: var(--warm);
+    border-color: rgba(255, 138, 76, 0.5);
+    box-shadow: inset 0 0 12px rgba(255, 138, 76, 0.1);
+}
+
+/* ===========================================
+   TITLE SLIDE (slide 1) — mesh network hero
+   =========================================== */
+.slide.title-slide { padding: 0; }
+.slide.title-slide .nodes-bg { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.slide.title-slide .node {
+    position: absolute; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 22px var(--cyan);
+    animation: pulse 2.8s ease-in-out infinite;
+}
+.slide.title-slide .node.warm  { background: var(--warm); box-shadow: 0 0 22px var(--warm); }
+.slide.title-slide .node.dim   { background: #6ec6d0; box-shadow: 0 0 12px #6ec6d0; opacity: 0.7; }
+.slide.title-slide .node.large { width: 16px; height: 16px; }
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.95; }
+    50%      { transform: scale(1.45); opacity: 0.5; }
+}
+
+.slide.title-slide svg.network-lines {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    z-index: 1; pointer-events: none;
+}
+.slide.title-slide svg.network-lines line {
+    stroke: rgba(0, 216, 255, 0.18);
+    stroke-width: 1.2;
+    stroke-dasharray: 4 6;
+    animation: dash 30s linear infinite;
+}
+@keyframes dash { to { stroke-dashoffset: -200; } }
+
+.slide.title-slide .ts-badge {
+    position: absolute;
+    top: 56px; right: 96px;
+    display: inline-flex; gap: 10px; align-items: center;
+    padding: 10px 20px;
+    border: 1px solid rgba(0, 216, 255, 0.5);
+    border-radius: 999px;
+    color: var(--cyan);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: rgba(0, 216, 255, 0.05);
+    z-index: 6;
+}
+.slide.title-slide .ts-badge .led {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--cyan); box-shadow: 0 0 12px var(--cyan);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.slide.title-slide .ts-meta {
+    position: absolute; top: 56px; left: 96px;
+    font-family: var(--font-mono); font-size: 18px;
+    color: var(--text-muted); letter-spacing: 0.1em;
+    text-transform: uppercase;
+    z-index: 6;
+}
+
+.slide.title-slide .hero {
+    position: absolute; left: 96px; right: 96px; top: 0; bottom: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    z-index: 4;
+    max-width: 1600px;
+}
+.slide.title-slide .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    color: var(--warm);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+    display: flex; align-items: center; gap: 18px;
+}
+.slide.title-slide .hero-eyebrow::before {
+    content: ''; display: inline-block; width: 44px; height: 2px; background: var(--warm);
+}
+.slide.title-slide h1.hero-title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-variation-settings: 'opsz' 96;
+    font-size: 160px;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    color: var(--text-primary);
+    margin-bottom: 36px;
+}
+.slide.title-slide .hero-sub {
+    font-family: var(--font-body);
+    font-weight: 300;
+    font-size: 34px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    max-width: 1400px;
+}
+.slide.title-slide .hero-sub strong { color: var(--text-primary); font-weight: 500; }
+
+.slide.title-slide .signature {
+    position: absolute; left: 96px; bottom: 64px; right: 96px;
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: end; gap: 48px;
+    z-index: 5;
+}
+.slide.title-slide .signature .name {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: 36px; color: var(--text-primary);
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+}
+.slide.title-slide .signature .meta {
+    font-family: var(--font-mono); font-size: 18px;
+    color: var(--text-muted);
+}
+.slide.title-slide .stack {
+    display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;
+}
+
+/* ===========================================
+   STANDARD CONTENT SLIDE LAYOUT
+   =========================================== */
+.slide .content {
+    position: absolute;
+    left: 96px; right: 96px;
+    top: 140px; bottom: 130px;
+    display: flex; flex-direction: column;
+    z-index: 2;
+}
+
+/* Section header */
+.section-tag {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    color: var(--warm);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    display: flex; align-items: center; gap: 16px;
+}
+.section-tag::before {
+    content: ''; display: inline-block;
+    width: 40px; height: 2px; background: var(--warm);
+}
+
+.slide h2.title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variation-settings: 'opsz' 72;
+    font-size: 88px;
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    margin-bottom: 56px;
+}
+
+/* ===========================================
+   LISTS — bullet style
+   =========================================== */
+ul.bullets, ul.bullets-l1, ul.bullets-l2 {
+    list-style: none; padding: 0; margin: 0;
+}
+ul.bullets > li {
+    position: relative;
+    padding-left: 44px;
+    margin-bottom: 32px;
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1.4;
+    color: var(--text-primary);
+}
+ul.bullets > li::before {
+    content: ''; position: absolute;
+    left: 0; top: 22px;
+    width: 22px; height: 2px;
+    background: var(--cyan);
+    box-shadow: 0 0 12px var(--cyan);
+}
+ul.bullets > li strong { color: var(--cyan); font-weight: 600; }
+ul.bullets > li em.warm { color: var(--warm); font-style: normal; font-weight: 500; }
+
+ul.bullets ul {
+    list-style: none; padding: 0; margin: 16px 0 0 0;
+}
+ul.bullets ul > li {
+    position: relative;
+    padding-left: 36px;
+    margin-top: 12px;
+    font-family: var(--font-body);
+    font-weight: 300;
+    font-size: 28px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+ul.bullets ul > li::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 20px;
+    width: 14px; height: 1px;
+    background: var(--text-muted);
+}
+ul.bullets ul ul > li {
+    font-size: 24px;
+    color: var(--text-dim);
+    padding-left: 32px;
+}
+ul.bullets ul ul > li::before {
+    width: 10px; background: var(--text-dim);
+}
+
+/* ===========================================
+   IMAGE-LED SLIDE
+   =========================================== */
+.image-slide .content {
+    align-items: center; justify-content: center;
+    text-align: center;
+}
+.image-slide .frame {
+    position: relative;
+    padding: 8px;
+    background: rgba(20, 28, 42, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow:
+        0 30px 60px rgba(0, 0, 0, 0.5),
+        0 0 80px rgba(0, 216, 255, 0.08);
+}
+.image-slide .frame img {
+    display: block;
+    border-radius: 4px;
+    max-width: 100%;
+    max-height: 700px;
+    object-fit: contain;
+}
+.image-slide .frame::before,
+.image-slide .frame::after {
+    content: '';
+    position: absolute;
+    width: 24px; height: 24px;
+    border: 2px solid var(--cyan);
+}
+.image-slide .frame::before {
+    top: -10px; left: -10px;
+    border-right: none; border-bottom: none;
+}
+.image-slide .frame::after {
+    bottom: -10px; right: -10px;
+    border-left: none; border-top: none;
+}
+.image-slide h2.title {
+    margin-bottom: 36px;
+    text-align: center;
+}
+
+/* ===========================================
+   PANEL / CARD
+   =========================================== */
+.panel {
+    background: rgba(20, 28, 42, 0.5);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 36px 40px;
+}
+.panel.warm { border-color: rgba(255, 138, 76, 0.35); }
+.panel.cyan { border-color: rgba(0, 216, 255, 0.4); }
+
+.panel h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 40px;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+}
+.panel .label {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    color: var(--cyan);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.panel.warm .label { color: var(--warm); }
+
+/* ===========================================
+   TWO-COLUMN GRID
+   =========================================== */
+.two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    flex: 1;
+}
+.two-col.gap-lg { gap: 72px; }
+
+/* ===========================================
+   SLIDE 4 (tonight's topic) — banner panel
+   =========================================== */
+.topic-card {
+    position: relative;
+    background: rgba(20, 28, 42, 0.5);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 48px;
+    margin-top: 12px;
+}
+.topic-card .meta {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    color: var(--cyan);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+.topic-card h3 {
+    font-family: var(--font-display);
+    font-size: 96px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+}
+.topic-card p {
+    font-family: var(--font-body);
+    font-size: 30px;
+    color: var(--text-secondary);
+    font-weight: 300;
+    line-height: 1.4;
+}
+.topic-card .banner {
+    margin-top: 36px;
+    width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+/* ===========================================
+   PROBLEM PANEL
+   =========================================== */
+.solution-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    flex: 1;
+}
+.solution-grid .solution h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 54px;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+    color: var(--cyan);
+}
+.solution-grid .solution.alt h3 { color: var(--warm); }
+.solution-grid .solution .label {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 28px;
+}
+.solution-grid .problems {
+    list-style: none; padding: 0;
+}
+.solution-grid .problems li {
+    font-family: var(--font-body);
+    font-size: 28px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    padding-left: 38px;
+    position: relative;
+    margin-bottom: 18px;
+}
+.solution-grid .problems li::before {
+    content: '×';
+    position: absolute;
+    left: 0; top: -4px;
+    font-family: var(--font-mono);
+    font-size: 32px;
+    color: var(--rose);
+    font-weight: 700;
+}
+
+/* ===========================================
+   GOAL SLIDE
+   =========================================== */
+.goal-main {
+    margin-bottom: 56px;
+}
+.goal-main .badge {
+    display: inline-flex;
+    padding: 10px 22px;
+    border: 1px solid rgba(0, 216, 255, 0.5);
+    border-radius: 999px;
+    color: var(--cyan);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+}
+.goal-main h3 {
+    font-family: var(--font-display);
+    font-size: 64px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+.goal-main .audience {
+    margin-top: 18px;
+    font-family: var(--font-body);
+    font-size: 28px;
+    color: var(--text-secondary);
+    font-weight: 300;
+}
+.goal-main .audience strong { color: var(--warm); font-weight: 500; }
+
+.side-goals {
+    background: rgba(20, 28, 42, 0.5);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--warm);
+    border-radius: 8px;
+    padding: 32px 40px;
+}
+.side-goals .heading {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    color: var(--warm);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+}
+.side-goals ul { list-style: none; padding: 0; }
+.side-goals ul li {
+    font-family: var(--font-body);
+    font-size: 28px;
+    color: var(--text-primary);
+    line-height: 1.4;
+    padding-left: 36px;
+    position: relative;
+    margin-bottom: 14px;
+}
+.side-goals ul li::before {
+    content: '+';
+    position: absolute;
+    left: 0; top: -2px;
+    color: var(--warm);
+    font-family: var(--font-mono);
+    font-size: 28px;
+    font-weight: 700;
+}
+.side-goals ul li .nested {
+    margin-top: 10px;
+    display: block;
+    font-size: 22px;
+    color: var(--text-secondary);
+    font-weight: 300;
+}
+
+/* ===========================================
+   MILESTONES SLIDE
+   =========================================== */
+.milestone-list {
+    list-style: none; padding: 0; margin: 0;
+    counter-reset: ms;
+}
+.milestone-list li {
+    counter-increment: ms;
+    position: relative;
+    padding: 24px 0 24px 110px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 52px;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+.milestone-list li::before {
+    content: counter(ms, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: 24px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 32px;
+    color: var(--cyan);
+    letter-spacing: 0.1em;
+}
+.milestone-list li:last-child { border-bottom: none; }
+.milestone-list li .accent { color: var(--cyan); }
+
+.fun-fact {
+    margin-top: 32px;
+    padding: 28px 36px;
+    background: rgba(255, 138, 76, 0.06);
+    border: 1px dashed rgba(255, 138, 76, 0.5);
+    border-radius: 8px;
+}
+.fun-fact .tag {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: var(--warm);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+.fun-fact .body {
+    font-family: var(--font-body);
+    font-size: 26px;
+    color: var(--text-primary);
+    font-weight: 400;
+    line-height: 1.4;
+}
+.fun-fact .body em {
+    color: var(--warm); font-style: normal; font-weight: 500;
+}
+.fun-fact ul {
+    list-style: none; padding: 0; margin-top: 14px;
+}
+.fun-fact ul li {
+    font-family: var(--font-body);
+    font-size: 22px;
+    color: var(--text-secondary);
+    font-weight: 300;
+    padding-left: 28px;
+    position: relative;
+    margin-top: 6px;
+}
+.fun-fact ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0; top: 0;
+    color: var(--warm);
+    font-family: var(--font-mono);
+}
+
+/* ===========================================
+   ARCHITECTURE DIAGRAM (k3s cluster)
+   =========================================== */
+.diagram-wrap {
+    flex: 1;
+    display: flex; justify-content: center; align-items: center;
+    width: 100%;
+}
+.diagram-wrap svg { width: 100%; height: 100%; max-height: 720px; }
+
+.diag-label {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    fill: var(--text-muted);
+}
+.diag-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 22px;
+    fill: var(--text-primary);
+    letter-spacing: -0.01em;
+}
+.diag-sub {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    fill: var(--text-muted);
+    letter-spacing: 0.06em;
+}
+
+/* ===========================================
+   FEATURES GRID
+   =========================================== */
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 36px;
+}
+.feat {
+    padding: 28px 32px;
+    background: rgba(20, 28, 42, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+.feat::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: linear-gradient(90deg, var(--cyan), transparent);
+}
+.feat.warm::before { background: linear-gradient(90deg, var(--warm), transparent); }
+.feat .ix {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text-muted);
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+}
+.feat h3 {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+.feat .desc {
+    font-family: var(--font-body);
+    font-size: 20px;
+    color: var(--text-secondary);
+    font-weight: 300;
+    line-height: 1.4;
+}
+.feat ul { list-style: none; padding: 0; margin-top: 8px; }
+.feat ul li {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: var(--text-muted);
+    padding-left: 22px;
+    position: relative;
+    margin-top: 4px;
+}
+.feat ul li::before {
+    content: '→';
+    position: absolute; left: 0; top: 0;
+    color: var(--cyan);
+}
+
+.feature-note {
+    background: rgba(0, 216, 255, 0.06);
+    border-left: 4px solid var(--cyan);
+    padding: 24px 32px;
+    border-radius: 4px;
+    font-family: var(--font-body);
+    font-size: 24px;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+.feature-note em { color: var(--cyan); font-style: normal; font-weight: 500; }
+.feature-note .quiet {
+    display: block;
+    margin-top: 10px;
+    font-size: 20px;
+    color: var(--text-muted);
+    font-weight: 300;
+}
+
+/* ===========================================
+   DEMO SLIDE
+   =========================================== */
+.slide.demo-slide .content {
+    justify-content: center; align-items: center;
+    text-align: center;
+}
+.demo-slide h2 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 280px;
+    letter-spacing: -0.04em;
+    line-height: 0.9;
+    background: linear-gradient(120deg, var(--cyan), var(--warm));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.demo-slide .sub {
+    margin-top: 36px;
+    font-family: var(--font-mono);
+    font-size: 28px;
+    color: var(--text-muted);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+}
+.demo-slide .blinker {
+    display: inline-block; width: 22px; height: 36px;
+    background: var(--cyan); margin-left: 12px;
+    vertical-align: middle;
+    animation: blink 1s steps(1) infinite;
+}
+@keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+
+/* ===========================================
+   SECTION DIVIDER (Sharing, Q&A)
+   =========================================== */
+.section-divider .content {
+    align-items: flex-start; justify-content: center;
+}
+.section-divider .big-num {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    color: var(--warm);
+    letter-spacing: 0.2em;
+    margin-bottom: 24px;
+}
+.section-divider h2 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 196px;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    color: var(--text-primary);
+}
+.section-divider .underline {
+    margin-top: 24px;
+    height: 2px;
+    width: 240px;
+    background: var(--cyan);
+}
+
+/* ===========================================
+   Q&A FINAL SLIDE
+   =========================================== */
+.qa-slide .content {
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+}
+.qa-slide h2 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 320px;
+    letter-spacing: -0.05em;
+    line-height: 0.85;
+    background: linear-gradient(120deg, var(--cyan), var(--warm));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.qa-slide .speaker-card {
+    margin-top: 64px;
+    padding: 32px 56px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(20, 28, 42, 0.5);
+    display: inline-flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.qa-slide .speaker-card .name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 40px;
+    color: var(--text-primary);
+}
+.qa-slide .speaker-card .email {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    color: var(--cyan);
+}
+
+/* ===========================================
+   SHARING — community testimonials
+   =========================================== */
+.sharing-slide .content {
+    align-items: center; justify-content: center;
+}
+.sharing-slide .frame img {
+    max-height: 720px;
+}
+.sharing-slide .tile-grid {
+    display: grid; grid-template-columns: 1fr 2fr;
+    gap: 48px; align-items: center;
+}
+.sharing-slide .frame.small img { max-height: 220px; }
+
+/* ===========================================
+   OURSKY logo slide (slide 2)
+   =========================================== */
+.slide.oursky-slide .content {
+    align-items: center; justify-content: center;
+    text-align: center;
+}
+.slide.oursky-slide .logo-frame {
+    max-width: 900px;
+}
+.slide.oursky-slide .logo-frame img {
+    max-height: 520px;
+    filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.4));
+}
+.slide.oursky-slide .tag {
+    margin-top: 36px;
+    font-family: var(--font-mono);
+    font-size: 22px;
+    color: var(--text-muted);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+}
+
+/* ===========================================
+   SKYROCKET github reveal (slide 10)
+   =========================================== */
+.skyrocket-slide .content {
+    align-items: center; justify-content: center;
+    text-align: center;
+}
+.skyrocket-slide .pre-title {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    color: var(--warm);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+}
+.skyrocket-slide h2 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 200px;
+    letter-spacing: -0.04em;
+    line-height: 0.9;
+    margin-bottom: 40px;
+    background: linear-gradient(120deg, var(--cyan) 0%, var(--cyan-soft) 40%, var(--warm) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.skyrocket-slide .gh-frame {
+    max-width: 1100px;
+}
+.skyrocket-slide .gh-frame img { max-height: 360px; }
+
+/* ===========================================
+   EDIT MODE (inline editing)
+   =========================================== */
+.edit-hotzone {
+    position: fixed;
+    top: 0; left: 0;
+    width: 80px; height: 80px;
+    z-index: 10000;
+    cursor: pointer;
+}
+.edit-toggle {
+    position: fixed;
+    top: 16px; left: 16px;
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: rgba(10, 14, 22, 0.85);
+    color: var(--cyan);
+    cursor: pointer;
+    font-size: 22px;
+    z-index: 10001;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+.edit-toggle.show,
+.edit-toggle.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.edit-toggle.active {
+    background: var(--cyan);
+    color: var(--bg-deep);
+}
+[contenteditable="true"] {
+    outline: 1px dashed var(--cyan);
+    outline-offset: 4px;
+    cursor: text;
+}
+[contenteditable="true"]:focus {
+    outline: 2px solid var(--cyan);
+    outline-offset: 4px;
+}
+
+/* ===========================================
+   NAVIGATION HINT (first slide only)
+   =========================================== */
+.nav-hint {
+    position: fixed; bottom: 22px; right: 32px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    z-index: 50;
+    opacity: 0.7;
+}
+.nav-hint kbd {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--cyan);
+    margin: 0 2px;
+}
+
+/* ===========================================
+   SPEAKER NOTES — hidden from slide layout,
+   surfaced in a presenter overlay panel
+   =========================================== */
+.speaker-notes { display: none; }
+
+.notes-panel {
+    position: fixed;
+    left: 24px; right: 24px;
+    bottom: 24px;
+    max-height: 38vh;
+    z-index: 9000;
+    background: rgba(6, 8, 13, 0.96);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6),
+                0 0 60px rgba(0, 216, 255, 0.06);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transform: translateY(110%);
+    opacity: 0;
+    transition: transform 0.35s var(--ease-out), opacity 0.25s ease;
+    pointer-events: none;
+    overflow: hidden;
+}
+.notes-panel.show {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+.notes-panel .head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.notes-panel .head .left { display: flex; gap: 14px; align-items: center; }
+.notes-panel .head .led {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--warm); box-shadow: 0 0 10px var(--warm);
+    animation: pulse 2.2s ease-in-out infinite;
+}
+.notes-panel .head .section { color: var(--cyan); }
+.notes-panel .head .right { display: flex; gap: 12px; align-items: center; color: var(--text-dim); }
+.notes-panel .head .right kbd {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--cyan);
+}
+.notes-panel .body {
+    padding: 22px 28px 26px;
+    max-height: calc(38vh - 50px);
+    overflow-y: auto;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 18px;
+    line-height: 1.55;
+    font-weight: 300;
+}
+.notes-panel .body .empty {
+    color: var(--text-dim);
+    font-style: italic;
+}
+.notes-panel .body p { margin-bottom: 10px; }
+.notes-panel .body ul { list-style: none; padding: 0; margin: 0; }
+.notes-panel .body ul li {
+    padding-left: 22px;
+    position: relative;
+    margin-bottom: 8px;
+}
+.notes-panel .body ul li::before {
+    content: '›';
+    position: absolute;
+    left: 0; top: 0;
+    color: var(--cyan);
+    font-family: var(--font-mono);
+}
+.notes-panel .body ul ul {
+    margin-top: 6px;
+}
+.notes-panel .body ul ul li {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+.notes-panel .body ul ul li::before {
+    content: '–';
+    color: var(--text-muted);
+}
+.notes-panel .body em.k {
+    font-style: normal;
+    color: var(--warm);
+    font-weight: 500;
+}
+
+.notes-panel .scrollbar { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.notes-panel .body::-webkit-scrollbar { width: 8px; }
+.notes-panel .body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- =====================================================
+     SLIDE 1: TITLE
+     ===================================================== -->
+<section class="slide title-slide active visible" data-section="Opening">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <!-- Animated mesh nodes & links -->
+    <svg class="network-lines" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+        <line x1="180" y1="200" x2="520" y2="360"/>
+        <line x1="520" y1="360" x2="900" y2="240"/>
+        <line x1="900" y1="240" x2="1380" y2="380"/>
+        <line x1="1380" y1="380" x2="1700" y2="280"/>
+        <line x1="520" y1="360" x2="640" y2="800"/>
+        <line x1="640" y1="800" x2="1080" y2="840"/>
+        <line x1="1080" y1="840" x2="1500" y2="780"/>
+        <line x1="1700" y1="280" x2="1500" y2="780"/>
+        <line x1="180" y1="200" x2="640" y2="800"/>
+    </svg>
+    <div class="nodes-bg">
+        <div class="node large" style="top: 195px; left: 175px;"></div>
+        <div class="node dim"   style="top: 355px; left: 515px;"></div>
+        <div class="node warm large" style="top: 235px; left: 895px;"></div>
+        <div class="node dim"   style="top: 375px; left: 1375px;"></div>
+        <div class="node"       style="top: 275px; left: 1695px;"></div>
+        <div class="node warm"  style="top: 795px; left: 635px;"></div>
+        <div class="node dim"   style="top: 835px; left: 1075px;"></div>
+        <div class="node large" style="top: 775px; left: 1495px;"></div>
+    </div>
+
+    <div class="ts-meta reveal">oursky · 29.05.2026</div>
+    <div class="ts-badge reveal">
+        <span class="led"></span> online
+    </div>
+
+    <div class="hero">
+        <div class="hero-eyebrow reveal">a fly.io clone, in a week</div>
+        <h1 class="hero-title reveal">
+            Vibe-coding<br/>
+            an internal <span class="ink-grad">PaaS</span>
+        </h1>
+        <p class="hero-sub reveal">
+            A self-hosted <strong>k3s</strong> cluster wrapped in <strong>Tailscale</strong>, so anyone at the studio — designers, PMs, sales — can ship their AI-built apps without an engineer in the loop.
+        </p>
+    </div>
+
+    <div class="signature">
+        <div class="reveal">
+            <div class="name">YinYin Chiu</div>
+            <div class="meta">Software Engineer · Oursky · yinyinchiu@oursky.com</div>
+        </div>
+        <div></div>
+        <div class="stack reveal">
+            <span class="chip glow">k3s</span>
+            <span class="chip">tailscale</span>
+            <span class="chip">buildkit</span>
+            <span class="chip">helm</span>
+        </div>
+    </div>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 2: OURSKY (logo)
+     ===================================================== -->
+<section class="slide oursky-slide" data-section="Intro">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> oursky · 2008—2026</div>
+        <div class="right"><span class="sep">/</span> studio</div>
+    </header>
+
+    <div class="content">
+        <div class="logo-frame reveal">
+            <img src="assets/oursky.png" alt="Oursky">
+        </div>
+        <div class="tag reveal">where this story is set</div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>02</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 3: FUN FACTS ABOUT ME
+     ===================================================== -->
+<section class="slide" data-section="Intro">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> intro · whoami</div>
+        <div class="right"><span class="sep">/</span> yinyin chiu</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">me</div>
+        <h2 class="title reveal">Fun facts about me</h2>
+
+        <ul class="bullets reveal">
+            <li>
+                With <strong>Oursky</strong> since <strong>2016</strong>
+                <ul><li>Grad job</li></ul>
+            </li>
+            <li>Joined Oursky because the office is <em class="warm">10 minutes</em> from my home</li>
+            <li>
+                Volunteer at a dog shelter — <em class="warm">force-free</em> dog trainer
+                <ul>
+                    <li>Train IT dog</li>
+                    <li>Train dog — on the path to <em class="warm">VSA-CDT</em></li>
+                    <li>Come find me to talk about your dog's behaviour "problems"</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>03</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 4: TONIGHT'S TOPIC
+     ===================================================== -->
+<section class="slide" data-section="Topic">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> tonight's topic</div>
+        <div class="right"><span class="sep">/</span> internal tool</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">on the agenda</div>
+        <h2 class="title reveal">One thing tonight.</h2>
+
+        <div class="topic-card reveal">
+            <div class="meta">project · skyrocket</div>
+            <h3><span class="ink-grad">Skyrocket</span></h3>
+            <p>An internal tool that lets non-tech colleagues deploy vibe-coding applications.</p>
+            <img src="assets/banner.png" alt="Skyrocket banner" class="banner">
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>04</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 5: BACKGROUND
+     ===================================================== -->
+<section class="slide" data-section="Background">
+    <aside class="speaker-notes">
+        <p><em class="k">Deployment is hard.</em></p>
+        <ul>
+            <li>Not everyone (esp. PM / Designer / Sales) knows how to deploy an application to a dev k8s cluster</li>
+            <li>We won't grant AI deploy credentials</li>
+            <li>No way to preview how the application works after deployment</li>
+            <li>No engineer wants to review agent-generated code</li>
+        </ul>
+    </aside>
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> background</div>
+        <div class="right"><span class="sep">/</span> why this exists</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">background</div>
+        <h2 class="title reveal" style="font-size:72px;margin-bottom:36px;">Background</h2>
+
+        <ul class="bullets reveal">
+            <li>
+                <strong>AI coding agents</strong> enable PM / Designer / Sales involve in development
+                <ul>
+                    <li>e.g. Client projects, Internal tools</li>
+                </ul>
+            </li>
+            <li><strong>Coding agent harness</strong> — assist AI coding agents produce code up to Oursky standard</li>
+            <li><em class="warm">Deployment is hard</em></li>
+            <li>Cloud hosting <em class="warm">$$$$</em></li>
+            <li>
+                Coding agent reduces great amount of engineer workload
+                <ul>
+                    <li>Enable free time to do some extra stuff <span style="color:var(--warm);">(Me and some senior engineers)</span></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>05</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 6: SOME ADOPTED SOLUTIONS
+     ===================================================== -->
+<section class="slide" data-section="Background">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> background</div>
+        <div class="right"><span class="sep">/</span> what we tried first</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">some adopted solutions</div>
+        <h2 class="title reveal">Two options before this.<br/>Both had a price tag.</h2>
+
+        <div class="solution-grid reveal">
+            <div class="solution">
+                <div class="label">option · 01</div>
+                <h3>Ask developers for help</h3>
+                <ul class="problems">
+                    <li>Not scalable</li>
+                </ul>
+            </div>
+            <div class="solution alt">
+                <div class="label">option · 02</div>
+                <h3>fly.io</h3>
+                <ul class="problems">
+                    <li>$$$$</li>
+                    <li>Requires technical knowledge</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>06</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 7: GOAL
+     ===================================================== -->
+<section class="slide" data-section="Goal">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> goal</div>
+        <div class="right"><span class="sep">/</span> what we want</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">goal</div>
+        <h2 class="title reveal">Make shipping a non-event.</h2>
+
+        <div class="goal-main reveal">
+            <span class="badge">primary</span>
+            <h3>Encourage creativity and ideas — set up an environment for colleagues to deploy their own apps.</h3>
+            <p class="audience">Target audience: <strong>PMs · Designers · Sales</strong></p>
+        </div>
+
+        <div class="side-goals reveal">
+            <div class="heading">side goals</div>
+            <ul>
+                <li><strong>Reduce hosting cost</strong></li>
+                <li>
+                    Restricted access to dev / staging sites
+                    <span class="nested">— only authorized users can reach them</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>07</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 8: MILESTONES
+     ===================================================== -->
+<section class="slide" data-section="Plan">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> milestones</div>
+        <div class="right"><span class="sep">/</span> what we built</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">milestones</div>
+        <h2 class="title reveal">Three pieces.</h2>
+
+        <ol class="milestone-list reveal">
+            <li>A self-hosted <span class="accent">k8s</span> <span style="color:var(--text-muted);font-family:var(--font-mono);font-size:32px;">(k3s)</span> cluster</li>
+            <li>Living inside a <span class="accent">Tailscale</span> network</li>
+            <li>An internal <span class="accent">deployment tool</span></li>
+        </ol>
+
+        <div class="fun-fact reveal">
+            <div class="tag">fun fact</div>
+            <div class="body">
+                <em>No auth control at the cluster level.</em> Prerequisite: you have access to the control plane :0)
+                <ul>
+                    <li>Network level — via Tailscale ACL</li>
+                    <li>Machine level — you can SSH in</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>08</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 9: OUR K3S CLUSTER (diagram)
+     ===================================================== -->
+<section class="slide" data-section="Architecture">
+    <aside class="speaker-notes">
+        <ul>
+            <li><em class="k">Control plane is still in the cloud</em> — we don't want it to crash with the office</li>
+        </ul>
+    </aside>
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> our k3s cluster</div>
+        <div class="right"><span class="sep">/</span> tailscale + bare metal</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">our k3s cluster</div>
+        <h2 class="title reveal" style="font-size:64px;margin-bottom:32px;">Cloud control plane, office-floor nodes.</h2>
+
+        <div class="diagram-wrap reveal">
+            <svg viewBox="0 0 1700 640" preserveAspectRatio="xMidYMid meet">
+                <!-- Tailscale outer frame -->
+                <rect x="20" y="20" width="1660" height="600" rx="14"
+                      fill="none" stroke="rgba(0, 216, 255, 0.5)" stroke-width="2" stroke-dasharray="6 6" />
+                <text x="60" y="56" class="diag-label" fill="var(--cyan)">// Tailscale Network</text>
+
+                <!-- Control plane (cloud / GCP) -->
+                <rect x="120" y="110" width="360" height="150" rx="10"
+                      fill="rgba(20,28,42,0.7)" stroke="var(--warm)" stroke-width="2"/>
+                <text x="300" y="148" text-anchor="middle" class="diag-label" fill="var(--warm)">cloud · gcp</text>
+                <text x="300" y="190" text-anchor="middle" class="diag-title">Control Plane</text>
+                <text x="300" y="220" text-anchor="middle" class="diag-sub">k3s control · always-on</text>
+                <circle cx="300" cy="260" r="7" fill="var(--warm)" />
+
+                <!-- Office bare-metal frame -->
+                <rect x="120" y="320" width="1100" height="280" rx="12"
+                      fill="rgba(255,138,76,0.05)" stroke="var(--border)" stroke-width="1"/>
+                <text x="160" y="356" class="diag-label">// office · bare metal</text>
+
+                <!-- Node 1 -->
+                <rect x="190" y="390" width="280" height="170" rx="10"
+                      fill="rgba(20,28,42,0.85)" stroke="var(--cyan)" stroke-width="2"/>
+                <text x="330" y="432" text-anchor="middle" class="diag-label" fill="var(--cyan)">node · 01</text>
+                <text x="330" y="468" text-anchor="middle" class="diag-title">k3s agent</text>
+                <text x="330" y="500" text-anchor="middle" class="diag-sub">workloads</text>
+                <circle cx="330" cy="540" r="6" fill="var(--cyan)" />
+
+                <!-- Node 2 -->
+                <rect x="540" y="390" width="280" height="170" rx="10"
+                      fill="rgba(20,28,42,0.85)" stroke="var(--cyan)" stroke-width="2"/>
+                <text x="680" y="432" text-anchor="middle" class="diag-label" fill="var(--cyan)">node · 02</text>
+                <text x="680" y="468" text-anchor="middle" class="diag-title">k3s agent</text>
+                <text x="680" y="500" text-anchor="middle" class="diag-sub">workloads</text>
+                <circle cx="680" cy="540" r="6" fill="var(--cyan)" />
+
+                <!-- Node n / scale-out -->
+                <rect x="890" y="390" width="280" height="170" rx="10"
+                      fill="rgba(20,28,42,0.5)" stroke="rgba(110,198,208,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
+                <text x="1030" y="432" text-anchor="middle" class="diag-label" fill="var(--text-muted)">node · 0n</text>
+                <text x="1030" y="468" text-anchor="middle" class="diag-title" style="fill:var(--text-muted);">scale on demand</text>
+                <text x="1030" y="500" text-anchor="middle" class="diag-sub">add more bare metal</text>
+
+                <!-- Staff laptop -->
+                <rect x="1300" y="390" width="280" height="170" rx="10"
+                      fill="rgba(20,28,42,0.85)" stroke="var(--warm)" stroke-width="2"/>
+                <text x="1440" y="432" text-anchor="middle" class="diag-label" fill="var(--warm)">user · staff</text>
+                <text x="1440" y="468" text-anchor="middle" class="diag-title">Oursky team</text>
+                <text x="1440" y="500" text-anchor="middle" class="diag-sub">accesses via tailscale</text>
+                <circle cx="1440" cy="540" r="6" fill="var(--warm)" />
+
+                <!-- Connecting lines -->
+                <line x1="300" y1="260" x2="300" y2="390" stroke="var(--cyan)" stroke-width="1.5" stroke-dasharray="4 4"/>
+                <line x1="300" y1="260" x2="680" y2="390" stroke="var(--cyan)" stroke-width="1.5" stroke-dasharray="4 4"/>
+                <line x1="300" y1="260" x2="1030" y2="390" stroke="rgba(0,216,255,0.4)" stroke-width="1.5" stroke-dasharray="4 4"/>
+                <line x1="1300" y1="475" x2="820" y2="475" stroke="var(--warm)" stroke-width="1.5" stroke-dasharray="4 4"/>
+            </svg>
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>09</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 10: SKYROCKET (github image)
+     ===================================================== -->
+<section class="slide skyrocket-slide" data-section="Skyrocket">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> the build</div>
+        <div class="right"><span class="sep">/</span> open source · sort of</div>
+    </header>
+
+    <div class="content">
+        <div class="pre-title reveal">// project</div>
+        <h2 class="reveal">Skyrocket</h2>
+        <div class="frame gh-frame reveal">
+            <img src="assets/github.png" alt="Skyrocket on GitHub">
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>10</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 11: SKYROCKET SYSTEM OVERVIEW (diagram)
+     ===================================================== -->
+<section class="slide" data-section="Skyrocket">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> system overview</div>
+        <div class="right"><span class="sep">/</span> how skyrocket works</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">skyrocket · system overview</div>
+        <h2 class="title reveal" style="font-size:64px;margin-bottom:24px;">CLI in. Built image, helm chart, running app — out.</h2>
+
+        <div class="diagram-wrap reveal">
+            <svg viewBox="0 0 1720 580" preserveAspectRatio="xMidYMid meet">
+                <!-- k3s cluster outer frame -->
+                <rect x="380" y="20" width="1320" height="540" rx="12"
+                      fill="rgba(0,216,255,0.04)" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="6 6"/>
+                <text x="420" y="56" class="diag-label" fill="var(--cyan)">// k3s cluster</text>
+
+                <!-- User -->
+                <rect x="20" y="220" width="140" height="80" rx="10"
+                      fill="rgba(20,28,42,0.9)" stroke="var(--warm)" stroke-width="2"/>
+                <text x="90" y="252" text-anchor="middle" class="diag-label" fill="var(--warm)">user</text>
+                <text x="90" y="280" text-anchor="middle" class="diag-title" style="font-size:18px;">Designer · PM · Sales</text>
+
+                <!-- CLI -->
+                <rect x="190" y="220" width="170" height="80" rx="10"
+                      fill="rgba(20,28,42,0.9)" stroke="var(--cyan)" stroke-width="2"/>
+                <text x="275" y="252" text-anchor="middle" class="diag-label" fill="var(--cyan)">cli</text>
+                <text x="275" y="280" text-anchor="middle" class="diag-title" style="font-size:18px;">skyrocket</text>
+
+                <!-- Skyrocket Server -->
+                <rect x="430" y="200" width="280" height="120" rx="10"
+                      fill="rgba(20,28,42,0.95)" stroke="var(--cyan)" stroke-width="2.5"/>
+                <text x="570" y="234" text-anchor="middle" class="diag-label" fill="var(--cyan)">control</text>
+                <text x="570" y="266" text-anchor="middle" class="diag-title">Skyrocket Server</text>
+                <text x="570" y="294" text-anchor="middle" class="diag-sub">routes everything</text>
+
+                <!-- Buildkit -->
+                <rect x="780" y="80" width="220" height="100" rx="10"
+                      fill="rgba(20,28,42,0.9)" stroke="var(--warm)" stroke-width="2"/>
+                <text x="890" y="112" text-anchor="middle" class="diag-label" fill="var(--warm)">builder</text>
+                <text x="890" y="142" text-anchor="middle" class="diag-title">Buildkit</text>
+                <text x="890" y="168" text-anchor="middle" class="diag-sub">builds container images</text>
+
+                <!-- Container Registry -->
+                <rect x="1050" y="80" width="240" height="100" rx="10"
+                      fill="rgba(20,28,42,0.9)" stroke="var(--warm)" stroke-width="2"/>
+                <text x="1170" y="112" text-anchor="middle" class="diag-label" fill="var(--warm)">storage</text>
+                <text x="1170" y="142" text-anchor="middle" class="diag-title">Container Registry</text>
+                <text x="1170" y="168" text-anchor="middle" class="diag-sub">stores built images</text>
+
+                <!-- User Apps -->
+                <rect x="730" y="350" width="320" height="100" rx="10"
+                      fill="rgba(255,138,76,0.1)" stroke="var(--warm)" stroke-width="2"/>
+                <text x="890" y="382" text-anchor="middle" class="diag-label" fill="var(--warm)">applied · helm</text>
+                <text x="890" y="412" text-anchor="middle" class="diag-title">User Apps</text>
+                <text x="890" y="438" text-anchor="middle" class="diag-sub">running in cluster</text>
+
+                <!-- Stateful services row -->
+                <rect x="430" y="490" width="160" height="60" rx="8"
+                      fill="rgba(20,28,42,0.9)" stroke="var(--border)" stroke-width="1.5"/>
+                <text x="510" y="520" text-anchor="middle" class="diag-title" style="font-size:18px;">Redis</text>
+                <text x="510" y="540" text-anchor="middle" class="diag-sub">cache · queue</text>
+
+                <rect x="610" y="490" width="160" height="60" rx="8"
+                      fill="rgba(20,28,42,0.9)" stroke="var(--border)" stroke-width="1.5"/>
+                <text x="690" y="520" text-anchor="middle" class="diag-title" style="font-size:18px;">RustFS</text>
+                <text x="690" y="540" text-anchor="middle" class="diag-sub">s3-compatible</text>
+
+                <rect x="790" y="490" width="220" height="60" rx="8"
+                      fill="rgba(20,28,42,0.9)" stroke="var(--border)" stroke-width="1.5"/>
+                <text x="900" y="520" text-anchor="middle" class="diag-title" style="font-size:18px;">PostgreSQL</text>
+                <text x="900" y="540" text-anchor="middle" class="diag-sub">primary store</text>
+
+                <!-- Flow arrows -->
+                <!-- User -> CLI -->
+                <path d="M 160,260 L 190,260" stroke="var(--warm)" stroke-width="2" fill="none" marker-end="url(#warmArrow)"/>
+                <!-- CLI -> Server -->
+                <path d="M 360,260 L 430,260" stroke="var(--cyan)" stroke-width="2" fill="none" marker-end="url(#cyanArrow)"/>
+                <!-- Server -> Buildkit -->
+                <path d="M 600,200 Q 690,140 780,130" stroke="var(--cyan)" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#cyanArrow)"/>
+                <text x="680" y="170" class="diag-sub" fill="var(--cyan)">build context</text>
+                <!-- Buildkit -> Registry -->
+                <path d="M 1000,130 L 1050,130" stroke="var(--warm)" stroke-width="1.5" fill="none" marker-end="url(#warmArrow)"/>
+                <text x="1025" y="115" class="diag-sub" fill="var(--warm)" text-anchor="middle">image</text>
+                <!-- Server -> User Apps (apply with SA) -->
+                <path d="M 620,320 Q 760,340 800,350" stroke="var(--warm)" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#warmArrow)"/>
+                <text x="720" y="350" class="diag-sub" fill="var(--warm)">helm apply (SA)</text>
+
+                <!-- arrow markers -->
+                <defs>
+                    <marker id="cyanArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--cyan)"/>
+                    </marker>
+                    <marker id="warmArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warm)"/>
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>11</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 12: FEATURES
+     ===================================================== -->
+<section class="slide" data-section="Skyrocket">
+    <aside class="speaker-notes">
+        <ul>
+            <li><em class="k">Support multi-services</em>
+                <ul>
+                    <li>Separate Dockerfile and build context</li>
+                    <li>Supports nested <code>.dockerignore</code></li>
+                </ul>
+            </li>
+            <li>Can support a relatively complex project
+                <ul>
+                    <li>SPA frontend</li>
+                    <li>API server</li>
+                    <li>Job queue / workers</li>
+                </ul>
+            </li>
+        </ul>
+    </aside>
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> features</div>
+        <div class="right"><span class="sep">/</span> what shipped</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">features</div>
+        <h2 class="title reveal" style="font-size:80px;margin-bottom:36px;">Everything below is a real PM request.</h2>
+
+        <div class="features-grid reveal">
+            <div class="feat">
+                <div class="ix">// 01</div>
+                <h3>In-cluster image builds</h3>
+                <div class="desc">Buildkit runs inside k3s — no CI build farm required.</div>
+            </div>
+            <div class="feat warm">
+                <div class="ix">// 02</div>
+                <h3>Stateful primitives</h3>
+                <div class="desc">PostgreSQL, Redis, and S3 (RustFS) on demand.</div>
+            </div>
+            <div class="feat">
+                <div class="ix">// 03</div>
+                <h3>Secrets management</h3>
+                <div class="desc">Wired into the deploy flow, not the user's lap.</div>
+            </div>
+            <div class="feat warm">
+                <div class="ix">// 04</div>
+                <h3>Multi-service apps</h3>
+                <div class="desc">Separate Dockerfiles + nested dockerignore.</div>
+            </div>
+            <div class="feat">
+                <div class="ix">// 05</div>
+                <h3>Predeploy tasks</h3>
+                <ul>
+                    <li>DB migrations</li>
+                    <li>Seed data</li>
+                </ul>
+            </div>
+            <div class="feat warm">
+                <div class="ix">// 06</div>
+                <h3>Complex projects</h3>
+                <div class="desc">SPA + API + worker queue, in one deploy.</div>
+            </div>
+        </div>
+
+        <div class="feature-note reveal">
+            <em>Phase-1 plan was "just host an SPA". :0)</em>
+            <span class="quiet">Then a PM filed five issues in a row.</span>
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>12</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 13: DEMO
+     ===================================================== -->
+<section class="slide demo-slide" data-section="Demo">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> live</div>
+        <div class="right"><span class="sep">/</span> hold on tight</div>
+    </header>
+
+    <div class="content">
+        <div class="reveal" style="font-family:var(--font-mono);font-size:28px;color:var(--warm);letter-spacing:0.25em;text-transform:uppercase;margin-bottom:12px;">// switching to terminal</div>
+        <h2 class="reveal">Demo<span class="blinker"></span></h2>
+        <div class="sub reveal">$ skyrocket deploy</div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>13</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 14: SHARING (case2.png)
+     ===================================================== -->
+<section class="slide sharing-slide" data-section="Sharing">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> sharing · 01</div>
+        <div class="right"><span class="sep">/</span> in the wild</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">sharing</div>
+        <h2 class="title reveal" style="font-size:64px;margin-bottom:24px;">What people built with it.</h2>
+
+        <div class="frame reveal">
+            <img src="assets/case2.png" alt="A shared case">
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>14</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 15: SHARING (case1.png)
+     ===================================================== -->
+<section class="slide sharing-slide" data-section="Sharing">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> sharing · 02</div>
+        <div class="right"><span class="sep">/</span> in the wild</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">sharing</div>
+        <h2 class="title reveal" style="font-size:64px;margin-bottom:24px;">Another case from the studio.</h2>
+
+        <div class="frame reveal">
+            <img src="assets/case1.png" alt="A shared case">
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>15</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 16: SHARING (case3.png + timeline.png)
+     ===================================================== -->
+<section class="slide sharing-slide" data-section="Sharing">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> sharing · 03</div>
+        <div class="right"><span class="sep">/</span> from idea to deploy</div>
+    </header>
+
+    <div class="content">
+        <div class="section-tag reveal">sharing</div>
+        <h2 class="title reveal" style="font-size:64px;margin-bottom:24px;">From idea to running app.</h2>
+
+        <div class="tile-grid reveal" style="width:100%;">
+            <div class="frame small">
+                <img src="assets/case3.png" alt="Case 3">
+            </div>
+            <div class="frame">
+                <img src="assets/timeline.png" alt="Timeline">
+            </div>
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">vibe-coding a fly.io clone</div>
+        <div class="counter"><b>16</b> / 17</div>
+    </footer>
+</section>
+
+
+<!-- =====================================================
+     SLIDE 17: Q & A
+     ===================================================== -->
+<section class="slide qa-slide" data-section="Closing">
+    <div class="mesh-bg"></div>
+    <div class="mesh-grid"></div>
+
+    <!-- Animated mesh nodes & links (echo title slide) -->
+    <svg style="position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+        <line x1="220" y1="240" x2="540" y2="380" stroke="rgba(0, 216, 255, 0.16)" stroke-width="1.2" stroke-dasharray="4 6"/>
+        <line x1="540" y1="380" x2="920" y2="260" stroke="rgba(0, 216, 255, 0.16)" stroke-width="1.2" stroke-dasharray="4 6"/>
+        <line x1="920" y1="260" x2="1400" y2="380" stroke="rgba(0, 216, 255, 0.16)" stroke-width="1.2" stroke-dasharray="4 6"/>
+        <line x1="1400" y1="380" x2="1700" y2="290" stroke="rgba(0, 216, 255, 0.16)" stroke-width="1.2" stroke-dasharray="4 6"/>
+    </svg>
+    <div style="position:absolute;inset:0;z-index:1;pointer-events:none;">
+        <div class="node" style="position:absolute;top:235px;left:215px;width:10px;height:10px;border-radius:50%;background:var(--cyan);box-shadow:0 0 18px var(--cyan);animation:pulse 2.6s ease-in-out infinite;"></div>
+        <div class="node" style="position:absolute;top:375px;left:535px;width:10px;height:10px;border-radius:50%;background:var(--warm);box-shadow:0 0 18px var(--warm);animation:pulse 2.6s ease-in-out infinite;"></div>
+        <div class="node" style="position:absolute;top:255px;left:915px;width:10px;height:10px;border-radius:50%;background:var(--cyan);box-shadow:0 0 18px var(--cyan);animation:pulse 2.6s ease-in-out infinite;"></div>
+        <div class="node" style="position:absolute;top:375px;left:1395px;width:10px;height:10px;border-radius:50%;background:var(--warm);box-shadow:0 0 18px var(--warm);animation:pulse 2.6s ease-in-out infinite;"></div>
+        <div class="node" style="position:absolute;top:285px;left:1695px;width:10px;height:10px;border-radius:50%;background:var(--cyan);box-shadow:0 0 18px var(--cyan);animation:pulse 2.6s ease-in-out infinite;"></div>
+    </div>
+
+    <header class="chrome-top">
+        <div class="left"><span class="dot"></span> q &amp; a</div>
+        <div class="right"><span class="sep">/</span> fire away</div>
+    </header>
+
+    <div class="content">
+        <h2 class="reveal">Q &amp; A</h2>
+        <div class="speaker-card reveal">
+            <div class="name">YinYin Chiu</div>
+            <div class="email">yinyinchiu@oursky.com</div>
+        </div>
+    </div>
+
+    <footer class="chrome-bot">
+        <div class="brand">thanks for listening</div>
+        <div class="counter"><b>17</b> / 17</div>
+    </footer>
+</section>
+
+</main>
+</div>
+
+<!-- Inline-edit affordance -->
+<div class="edit-hotzone" id="editHotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✎</button>
+
+<!-- Speaker notes overlay — toggled with N key -->
+<aside class="notes-panel" id="notesPanel" aria-hidden="true">
+    <div class="head">
+        <div class="left">
+            <span class="led"></span>
+            <span>speaker notes</span>
+            <span class="section" id="notesSection">—</span>
+        </div>
+        <div class="right">
+            <span id="notesCounter">— / 17</span>
+            <span>press <kbd>N</kbd> to hide</span>
+        </div>
+    </div>
+    <div class="body" id="notesBody"></div>
+</aside>
+
+<div class="nav-hint" id="navHint">
+    <kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>N</kbd> notes · <kbd>E</kbd> edit
+</div>
+
+<script>
+/* ===========================================
+   SLIDE PRESENTATION CONTROLLER
+   - Stage scaling to fit viewport
+   - Keyboard / mouse-wheel / touch navigation
+   - Inline edit toggle (E or hover-hotzone)
+   - Auto-save to localStorage
+   =========================================== */
+class SlidePresentation {
+    constructor() {
+        this.slides = document.querySelectorAll('.slide');
+        this.currentSlide = 0;
+        this.stage = document.getElementById('deckStage');
+
+        this.notesPanel = document.getElementById('notesPanel');
+        this.notesBody  = document.getElementById('notesBody');
+        this.notesSection = document.getElementById('notesSection');
+        this.notesCounter = document.getElementById('notesCounter');
+        this.notesVisible = false;
+
+        this.setupStageScale();
+        this.setupKeyboardNav();
+        this.setupTouchNav();
+        this.setupWheelNav();
+        this.restoreSlot();
+        this.showSlide(this.currentSlide);
+        this.bindEditing();
+    }
+
+    toggleNotes() {
+        this.notesVisible = !this.notesVisible;
+        this.notesPanel.classList.toggle('show', this.notesVisible);
+        this.notesPanel.setAttribute('aria-hidden', this.notesVisible ? 'false' : 'true');
+    }
+
+    updateNotes() {
+        const slide = this.slides[this.currentSlide];
+        const note = slide.querySelector('.speaker-notes');
+        const section = slide.getAttribute('data-section') || '—';
+        if (this.notesSection) this.notesSection.textContent = '· ' + section.toLowerCase();
+        if (this.notesCounter) this.notesCounter.textContent = String(this.currentSlide + 1).padStart(2, '0') + ' / ' + String(this.slides.length).padStart(2, '0');
+        if (this.notesBody) {
+            this.notesBody.innerHTML = note
+                ? note.innerHTML
+                : '<div class="empty">no notes for this slide</div>';
+        }
+    }
+
+    setupStageScale() {
+        const scale = () => {
+            const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+            const x = (window.innerWidth - 1920 * factor) / 2;
+            const y = (window.innerHeight - 1080 * factor) / 2;
+            this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+        };
+        scale();
+        window.addEventListener('resize', scale);
+    }
+
+    setupKeyboardNav() {
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); this.prev(); }
+            else if (e.key === 'Home') { this.showSlide(0); }
+            else if (e.key === 'End') { this.showSlide(this.slides.length - 1); }
+            else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); this.toggleNotes(); }
+        });
+    }
+
+    setupTouchNav() {
+        let startX = 0, startY = 0;
+        document.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+        }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            const dx = e.changedTouches[0].clientX - startX;
+            const dy = e.changedTouches[0].clientY - startY;
+            if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+                if (dx < 0) this.next(); else this.prev();
+            }
+        }, { passive: true });
+    }
+
+    setupWheelNav() {
+        let lock = false;
+        document.addEventListener('wheel', (e) => {
+            if (lock) return;
+            if (Math.abs(e.deltaY) < 30) return;
+            lock = true;
+            if (e.deltaY > 0) this.next(); else this.prev();
+            setTimeout(() => lock = false, 600);
+        }, { passive: true });
+    }
+
+    next() { this.showSlide(this.currentSlide + 1); }
+    prev() { this.showSlide(this.currentSlide - 1); }
+
+    showSlide(index) {
+        this.currentSlide = Math.max(0, Math.min(index, this.slides.length - 1));
+        this.slides.forEach((slide, i) => {
+            slide.classList.toggle('active', i === this.currentSlide);
+            slide.classList.toggle('visible', i === this.currentSlide);
+        });
+        try { localStorage.setItem('skyrocket-slide-ix', String(this.currentSlide)); } catch (e) {}
+        const hint = document.getElementById('navHint');
+        if (hint) hint.style.opacity = (this.currentSlide === 0) ? '0.7' : '0.3';
+        this.updateNotes();
+    }
+
+    restoreSlot() {
+        try {
+            const ix = parseInt(localStorage.getItem('skyrocket-slide-ix') || '0', 10);
+            if (!isNaN(ix)) this.currentSlide = ix;
+        } catch (e) {}
+    }
+
+    bindEditing() {
+        this.editor = new InlineEditor(this);
+    }
+}
+
+/* ===========================================
+   INLINE EDITING — hover-hotzone or E key
+   - Auto-saves DOM contents to localStorage
+   - Restores on next load
+   =========================================== */
+class InlineEditor {
+    constructor(presentation) {
+        this.presentation = presentation;
+        this.isActive = false;
+        this.toggle = document.getElementById('editToggle');
+        this.hotzone = document.getElementById('editHotzone');
+        this.bind();
+        this.restore();
+    }
+
+    bind() {
+        let hideTimeout = null;
+        this.toggle.addEventListener('click', () => this.toggleEditMode());
+        this.hotzone.addEventListener('click', () => this.toggleEditMode());
+
+        this.hotzone.addEventListener('mouseenter', () => {
+            clearTimeout(hideTimeout);
+            this.toggle.classList.add('show');
+        });
+        this.hotzone.addEventListener('mouseleave', () => {
+            hideTimeout = setTimeout(() => {
+                if (!this.isActive) this.toggle.classList.remove('show');
+            }, 400);
+        });
+        this.toggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+        this.toggle.addEventListener('mouseleave', () => {
+            hideTimeout = setTimeout(() => {
+                if (!this.isActive) this.toggle.classList.remove('show');
+            }, 400);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'e' || e.key === 'E') && !this.isTyping()) this.toggleEditMode();
+        });
+    }
+
+    isTyping() {
+        const t = document.activeElement;
+        return t && (t.getAttribute('contenteditable') === 'true' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+    }
+
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        this.toggle.classList.toggle('active', this.isActive);
+        this.toggle.classList.toggle('show', this.isActive);
+        const editable = document.querySelectorAll('h1, h2, h3, h4, p, li, .name, .email, .meta, .desc, .label, .audience, .sub');
+        editable.forEach(el => {
+            el.setAttribute('contenteditable', this.isActive ? 'true' : 'false');
+            if (this.isActive) {
+                el.addEventListener('input', this.save.bind(this));
+            }
+        });
+        if (!this.isActive) this.save();
+    }
+
+    save() {
+        try {
+            const data = {};
+            document.querySelectorAll('[contenteditable]').forEach((el, i) => {
+                data['el_' + i] = el.innerHTML;
+            });
+            localStorage.setItem('skyrocket-edits', JSON.stringify(data));
+        } catch (e) {}
+    }
+
+    restore() {
+        try {
+            const data = JSON.parse(localStorage.getItem('skyrocket-edits') || '{}');
+            const editable = document.querySelectorAll('h1, h2, h3, h4, p, li, .name, .email, .meta, .desc, .label, .audience, .sub');
+            editable.forEach((el, i) => {
+                if (data['el_' + i] !== undefined) el.innerHTML = data['el_' + i];
+            });
+        } catch (e) {}
+    }
+}
+
+new SlidePresentation();
+</script>
+
+</body>
+</html>

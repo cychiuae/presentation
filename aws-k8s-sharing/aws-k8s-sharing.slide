@@ -1,0 +1,177 @@
+# Vibe-Coding a fly.io Clone in a Week: An Internal PaaS on K8s + Tailscale
+
+29th May 2026
+
+YinYin Chiu
+Software Engineer, Oursky
+yinyinchiu@oursky.com
+
+## Oursky
+
+.image assets/oursky.png 500 _
+
+## Fun facts about me
+
+- With Oursky since 2016
+  - Grad Job
+- Reason for joining Oursky - 10mins walk from my home
+- Volunteer in a dog shelter and a force-free dog trainer
+  - Train IT dog
+  - Train dog - on my path to be a VSA-CDT
+  - Welcome to find me talk about your dog behaviour "problems"
+
+## Tonight's topic
+
+- Skyrocket
+  - Internal tools for non-tech colleagues to deploy vide coding application
+
+.image assets/banner.png 400 _
+
+## Background
+
+- AI coding agents enable PM / Designer / Sales involve in development
+   - e.g. Client projects, Internal tools
+- Coding agent harness - assist AI coding agents produce code up to Oursky standard
+- Deployment is hard
+
+- Cloud hosting $$$$
+- Coding agent reduces great amount of engineer workload
+   - Enable free time to do some extra stuff (Me)
+
+: Deployment is hard
+: - Not everyone (esp. PM / Designer / Sales) knows how to deploy application to dev k8s cluster
+: - We won't grant AI to have deploy credential
+: - No way to preview how the application works after deployment
+: - No engineers want to review agent generated code
+
+## Some adopted solutions
+
+- Ask developers for help
+   - Problems
+      - No scalable
+- fly.io
+   - Problems
+      - $$$$
+      - Require certain amount technical knowledge
+
+## Goal
+
+- Encourage creativity / ideas
+- Setup a env / tool for colleagues to deploy their application
+  - Target audience: PM / Designer / Sales
+
+Side goal
+- **Reduce hosting cost**
+- Restricted access to dev/staging sites
+  - Only allow authorized users to access
+
+## Milestones
+
+- A self-hosted k8s (k3s) cluster
+- In Tailscale network
+- An internal deployment tool
+
+Fun fact:
+No auth control on cluster level
+  - Prerequisite: You have access to the control plane :0)
+    - Network level (via Tailscale ACL)
+    - Machine level (can ssh)
+
+## Our k3s cluster
+
+```
+   ┌─────────────────────────────────────────────────────────────┐
+   │                    Tailscale Network                        │
+   │                                                             │
+   │    ┌──────────────────┐                                     │
+   │    │   Control Plane  │                                     │
+   │    │      (GCP)       │                                     │
+   │    └────────┬─────────┘                                     │
+   │             │                                               │
+   │             │                                               │
+   │             │                                               │
+   │   ┌─────────┴────────────────────────────┐                  │
+   │   │  Office (Bare metal)                 │                  │
+   │   │                                      │                  │
+   │   │   ┌─────────┐        ┌─────────┐     │   ┌───────────┐  │
+   │   │   │ Node 1  │        │ Node 2  │     │◀──│   Staff   │  │
+   │   │   │ k3s     │        │ k3s     │     │   │           │  │
+   │   │   │ agent   │        │ agent   │     │   └───────────┘  │
+   │   │   └─────────┘        └─────────┘     │                  │
+   │   │                                      │                  │
+   │   └──────────────────────────────────────┘                  │
+   │                                                             │
+   └─────────────────────────────────────────────────────────────┘
+```
+
+: Control plane is still cloud
+: - Dont need to have crash
+
+## Skyrocket
+
+.image assets/github.png 400 _
+
+## Skyrocket system overview
+
+```
+                              ┌──────────────────────────────────────────────────────┐
+                              │ k3s cluster                                          │
+                              │                                                      │
+                              │                ┌──────────┐  build  ┌──────────────┐ │
+                              │             ┌─▶│ Buildkit │────────▶│  Container   │ │
+                              │             │  └──────────┘  image  │   Registry   │ │
+                              │             │ build context         └──────────────┘ │
+   ┌──────┐   ┌───────────┐      ┌──────────┴──────┐                                 │
+   │ User │──▶│ Skyrocket │─────▶│ Skyrocket Server│                                 │
+   └──────┘   │    CLI    │      └──────────┬──────┘                                 │
+              └───────────┘   │             │ Generate helm chart                    │
+                              │             │                                        │
+                              │             │ Apply with SA                          │
+                              │    ┌────────┴────────┐                               │
+                              │    │    User Apps    │                               │
+                              │    └─────────────────┘                               │
+                              │                                                      │
+                              │   ┌───────┐ ┌────────┐ ┌────────────┐                │
+                              │   │ Redis │ │ RustFS │ │ PostgreSQL │                │
+                              │   └───────┘ └────────┘ └────────────┘                │
+                              └──────────────────────────────────────────────────────┘
+```
+
+## Features
+
+- Build docker images in the cluster
+- Support Postgresql, redis and s3
+- Support secrets management
+- Support multi services
+- Predeploy tasks
+  - DB migration
+  - Insert seed data
+
+All of the above features are real requests by one of our PM
+
+Wanted to just support hosting SPA in phase 1 :0)
+
+: Support multi services
+: - Separate Dockerfile and context
+: - Support nested dockerignore
+: Can support a relatively complex projects
+: - SPA frontend
+: - API Server
+: - Job Queue / Workers
+
+## Demo
+
+## Sharing
+
+.image assets/case2.png 500 _
+
+## Sharing
+
+.image assets/case1.png 500 _
+
+## Sharing
+
+.image assets/case3.png 100 _
+.image assets/timeline.png 500 _
+
+## Q & A
