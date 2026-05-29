@@ -1,0 +1,9 @@
+name: be-rich
+port: 80
+resources:
+  postgresql:
+    enable: false
+  s3:
+    enable: false
+  redis:
+    enable: false
